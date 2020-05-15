@@ -1,0 +1,3 @@
+administer public private:
+  title: 'Administer Public/Private files toggle'
+  restrict access: true

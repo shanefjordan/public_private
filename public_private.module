@@ -1,0 +1,106 @@
+<?php
+
+use Drupal\Core\Cache\Cache;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\media\Entity\MediaType;
+use Drupal\file\Entity\File;
+use Drupal\media\Entity\Media;
+
+/**
+ * Implements hook_ENTITY_TYPE_presave().
+ */
+function public_private_node_presave(EntityInterface $entity) {
+  // Fetch content type and field details from config.
+  $config = \Drupal::config('public_private.settings');
+  $content_types = $config->get('content_type');
+  $file_fields = $config->get('file_field');
+
+  // Check if the content belongs to the content type for which configuration is added.
+  if (in_array($entity->bundle(), $content_types)) {
+    if (isset($entity->original) && $entity->status->value != $entity->original->status->value && $entity->status->value == 1) {
+      $nid = $entity->id();
+      Cache::invalidateTags(['node: ' . $nid]);
+      Cache::invalidateTags($entity->getCacheTagsToInvalidate());
+    }
+    $content_types_arr = array_flip($content_types);
+    $file_fields_arr = explode(',', $file_fields[$content_types_arr[$entity->bundle()]]);
+
+    // Loop for each field defined against a content type.
+    foreach ($file_fields_arr as $file_field_name) {
+      $fmove = FALSE;
+      $file_uri = '';
+      $file_field_name = trim($file_field_name);
+      $field_type = $entity->{$file_field_name}->getFieldDefinition()->getType();
+      // If field is of image type.
+      if ($field_type === 'image') {
+        $fid = $entity->{$file_field_name}->target_id;
+        $file = File::load($fid);
+        if (!empty($file)) {
+          $file_uri = $file->getFileUri();
+        }
+      }
+      elseif ($field_type === 'file') {
+        $fid = $entity->{$file_field_name}->target_id;
+        $file = File::load($fid);
+        if (!empty($file)) {
+          $file_uri = $file->getFileUri();
+        }
+      }
+      elseif ($field_type === 'entity_reference') {
+        $mid = $entity->{$file_field_name}->target_id;
+        $media = Media::load($mid);
+        // If Media is not null.
+        if (!empty($media)) {
+          $media_type = MediaType::load($media->bundle());
+          $media_type_arr = $media_type->toArray();
+          $fid = $media->{$media_type_arr['source_configuration']['source_field']}->target_id;
+          $file = File::load($fid);
+          if (!empty($file)) {
+            $file_uri = $file->getFileUri();
+          }
+        }
+      }
+      if (!empty($file_uri)) {
+        switch ($entity->status->value) {
+          // Unpublish, set to private.
+          case 0:
+            if (strpos($file_uri, 'public://') !== FALSE) {
+              $old_fs = 'public://';
+              $new_fs = 'private://';
+              $fmove = TRUE;
+            }
+            break;
+
+          // Publish, set to public.
+          case 1:
+            if (strpos($file_uri, 'private://') !== FALSE) {
+              $old_fs = 'private://';
+              $new_fs = 'public://';
+              $fmove = TRUE;
+            }
+            break;
+
+        }
+        $old_uri = $file->getFileUri();
+        $new_uri = str_replace($old_fs, $new_fs, $old_uri);
+        // Ensure directory exists.
+        $file_system = \Drupal::service('file_system');
+        $directory = substr($new_uri, 0, strrpos($new_uri, '/'));
+        if (!is_dir($directory)) {
+          $file_system->mkdir($directory, NULL, TRUE);
+        }
+        if ($fmove == TRUE) {
+          // Move the file to the proper directory.
+          file_move($file, $new_uri);
+          $directory = substr($old_uri, 0, strrpos($old_uri, '/'));
+          if (!is_dir($directory)) {
+            $file_system->mkdir($directory, NULL, TRUE);
+          }
+          $file_system->copy($new_uri, $old_uri);
+          $renderCache = \Drupal::service('cache.render');
+          $renderCache->invalidateAll();
+        }
+      }
+    }
+  }
+}

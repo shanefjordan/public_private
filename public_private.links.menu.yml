@@ -1,0 +1,5 @@
+public_private.form_settings:
+  title: 'Public/Private Files toggle'
+  description: 'Configure private file system for Content Types.'
+  route_name: public_private.form_settings
+  parent: system.admin_config_system

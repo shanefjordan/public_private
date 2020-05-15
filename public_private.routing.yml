@@ -1,0 +1,7 @@
+public_private.form_settings:
+  path: '/admin/config/system/public_private'
+  defaults:
+    _form: '\Drupal\public_private\Form\PublicPrivateSettingsForm'
+    _title: 'Public/Private form configuration'
+  requirements:
+    _permission: 'administer public private'
