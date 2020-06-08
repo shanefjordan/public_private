@@ -12,8 +12,9 @@ use Drupal\media\Entity\Media;
 function public_private_node_presave(EntityInterface $entity) {
   // Fetch content type and field details from config.
   $config = \Drupal::config('public_private.settings');
-  $content_types = $config->get('content_type');
-  $file_fields = $config->get('file_field');
+  $list = $config->get('list');
+  $content_types = array_column($list, 'content_type');
+  $file_fields = array_column($list, 'file_field');
 
   // Check if the content belongs to the content type for which configuration is added.
   if (in_array($entity->bundle(), $content_types)) {
@@ -102,5 +103,5 @@ function public_private_node_presave(EntityInterface $entity) {
         }
       }
     }
-  }
+  } // End if
 }
