@@ -1,0 +1,19 @@
+# Schema for the configuration files of the System module.
+
+public_private.settings:
+  type: config_object
+  label: 'Public / Private file field management'
+  mapping:
+    list:
+      type: sequence
+      label: 'Public Private File settings'
+      sequence:
+        type: mapping
+        label: 'Content type'
+        mapping:
+          content_type:
+            type: string
+            label: 'Content Type'
+          file_field:
+            type: string
+            label: 'File Field Name'
