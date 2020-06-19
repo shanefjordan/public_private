@@ -1,47 +1,62 @@
 <?php
-/**
- * @file
- * Contains \Drupal\public_private\Form\PublicPrivateSettingsForm.
- */
 
 namespace Drupal\public_private\Form;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Defines a form that configures forms module settings.
  */
-class PublicPrivateSettingsForm  extends ConfigFormBase {
+class PublicPrivateSettingsForm extends ConfigFormBase {
 
   /**
    * Array of content types.
    *
    * @var array
    */
-  protected $content_type_option;
+  protected $contentTypeOptions;
+  /**
+   * The request context.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
 
   /**
    * Constructs a SiteInformationForm object.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The factory for configuration objects.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager service.
    */
-  public function __construct(ConfigFactoryInterface $config_factory) {
-    parent::__construct($config_factory);
+  public function __construct(ConfigFactoryInterface $config_factory, EntityTypeManagerInterface $entity_type_manager) {
+    parent::__construct($config_factory, $entity_type_manager);
 
-    $content_types = \Drupal::entityTypeManager()
+    $this->configFactory = $config_factory;
+    $this->entityTypeManager = $entity_type_manager;
+    $content_types = $this->entityTypeManager
       ->getStorage('node_type')
       ->loadMultiple();
-      $this->content_type_option['_none'] = $this->t('--Select--');
+    $this->contentTypeOptions['_none'] = $this->t('--Select--');
     foreach ($content_types as $content_type) {
-      $this->content_type_option[$content_type->id()] = $content_type->label();
+      $this->contentTypeOptions[$content_type->id()] = $content_type->label();
     }
   }
 
-  
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('config.factory'),
+      $container->get('entity.manager')
+    );
+  }
 
   /**
    * {@inheritdoc}
@@ -62,48 +77,48 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
    */
   public function buildForm(array $form, FormStateInterface $form_state, Request $request = NULL) {
     $config = $this->config('public_private.settings');
-    //dpm($config);
-    
-    $config_list = array();
+    // dpm($config);
+    $config_list = [];
     if (!empty($config->get('list'))) {
       $config_list = $config->get('list');
     }
-    
+
     $num_values = $form_state->get('num_values');
-    if(is_null($num_values)) {
+    if (is_null($num_values)) {
       $num_values = count($config_list);
       $form_state->set('num_values', $num_values);
     }
 
-    // State that the form needs to allow for a hierarchy (ie, multiple names with our names key).
+    // State that the form needs to allow for a hierarchy
+    // (ie, multiple names with our names key).
     $form['#tree'] = TRUE;
 
     // Initial number of names.
     $form['#prefix'] = '<div id="ajax-settings-wizard-wrapper">';
     $form['#suffix'] = '</div>';
 
-    $form['public_private'] = array(
+    $form['public_private'] = [
       '#type' => 'details',
       '#title' => $this->t('Public Private File settings'),
       '#open' => TRUE,
-    );
+    ];
 
-    for ( $i = 0; $i < $num_values; $i++) {
+    for ($i = 0; $i < $num_values; $i++) {
       $form['public_private']['file_fields'][] = [
         'content_type' => [
           '#type' => 'select',
           '#title' => $this->t('Content Type'),
           '#default_value' => $config_list[$i]['content_type'],
-          '#options' => $this->content_type_option,
-          //'#required' => true,
+          '#options' => $this->contentTypeOptions,
+          // '#required' => true,
         ],
         'file_field' => [
           '#type' => 'textfield',
           '#description' => $this->t('Use comma (,) in case of multiple file field names in a content type.'),
           '#title' => $this->t('File Field Name'),
-          '#default_value' =>$config_list[$i]['file_field'],
+          '#default_value' => $config_list[$i]['file_field'],
           '#size' => 100,
-          //'#required' => true,
+          // '#required' => true,
         ],
       ];
     }
@@ -112,8 +127,8 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
         '#type' => 'select',
         '#title' => $this->t('Content Type'),
         '#default_value' => NULL,
-        '#options' => $this->content_type_option,
-        //'#required' => true,
+        '#options' => $this->contentTypeOptions,
+        // '#required' => true,
       ],
       'file_field' => [
         '#type' => 'textfield',
@@ -121,7 +136,7 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
         '#title' => $this->t('File Field Name'),
         '#default_value' => NULL,
         '#size' => 100,
-        //'#required' => true,
+        // '#required' => true,
       ],
     ];
 
@@ -129,7 +144,7 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
     $form['public_private']['addname'] = [
       '#type' => 'submit',
       '#value' => $this->t('Add more'),
-      '#submit' => array('::addNewFields'),
+      '#submit' => ['::addNewFields'],
       '#ajax' => [
         'callback' => '::rebuildForm',
         'wrapper' => 'ajax-settings-wizard-wrapper',
@@ -144,7 +159,7 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
     $form['public_private']['removename'] = [
       '#type' => 'submit',
       '#value' => $this->t('Remove one'),
-      '#submit' => array('::removeOneField'),
+      '#submit' => ['::removeOneField'],
       '#ajax' => [
         'callback' => '::rebuildForm',
         'wrapper' => 'ajax-settings-wizard-wrapper',
@@ -174,17 +189,17 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
     else {
       return TRUE;
     }
-    
+
   }
 
   /**
    * {@inheritdoc}
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $public_private = array();
-    foreach ($form_state->getValues()['public_private']['file_fields'] as $key => $item) {
-       
-      if($item['content_type'] != '_none' && !is_null($item['file_field']) ) {
+    $public_private = [];
+    foreach ($form_state->getValues()['public_private']['file_fields'] as $item) {
+
+      if ($item['content_type'] != '_none' && !is_null($item['file_field'])) {
         $public_private[] = $item;
       }
     }
@@ -205,7 +220,7 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
 
     $form_state->setRebuild();
     // Rebuild the form.
-    //return $form;
+    // return $form;.
   }
 
   /**
@@ -220,7 +235,7 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
     }
     // Rebuild the form.
     $form_state->setRebuild();
-    //return $form;
+    // Return $form;.
   }
 
   /**
@@ -228,7 +243,7 @@ class PublicPrivateSettingsForm  extends ConfigFormBase {
    */
   public function rebuildForm(array &$form, FormStateInterface &$form_state) {
 
-   
     return $form;
   }
+
 }

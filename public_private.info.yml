@@ -3,4 +3,4 @@ description: Module to trigger movement of files for a node from the private to 
 type: module
 core: 8.x
 configure: public_private.form_settings
-
+core_version_requirement: ^8

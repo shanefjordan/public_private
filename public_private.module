@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * @file
+ * Provides feature to toggle file fields from private to public.
+ */
+
 use Drupal\Core\Cache\Cache;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\media\Entity\MediaType;
@@ -16,9 +21,10 @@ function public_private_node_presave(EntityInterface $entity) {
   $content_types = array_column($list, 'content_type');
   $file_fields = array_column($list, 'file_field');
 
-  // Check if the content belongs to the content type for which configuration is added.
+  // Check if the content belongs to the content type.
   if (in_array($entity->bundle(), $content_types)) {
-    if (isset($entity->original) && $entity->status->value != $entity->original->status->value && $entity->status->value == 1) {
+    if (isset($entity->original) && $entity->status->value != $entity->original->status->value
+      && $entity->status->value == 1) {
       $nid = $entity->id();
       Cache::invalidateTags(['node: ' . $nid]);
       Cache::invalidateTags($entity->getCacheTagsToInvalidate());
@@ -70,6 +76,10 @@ function public_private_node_presave(EntityInterface $entity) {
               $new_fs = 'private://';
               $fmove = TRUE;
             }
+            else {
+              $old_fs = 'private://';
+              $new_fs = 'private://';
+            }
             break;
 
           // Publish, set to public.
@@ -79,25 +89,26 @@ function public_private_node_presave(EntityInterface $entity) {
               $new_fs = 'public://';
               $fmove = TRUE;
             }
+            else {
+              $old_fs = 'public://';
+              $new_fs = 'public://';
+            }
             break;
 
         }
-        $old_uri = $file->getFileUri();
+        $new_uri = $old_uri = $file->getFileUri();
+        // Replace fs change in file uri.
         $new_uri = str_replace($old_fs, $new_fs, $old_uri);
-        // Ensure directory exists.
+        // Ensure destination directory exists.
         $file_system = \Drupal::service('file_system');
         $directory = substr($new_uri, 0, strrpos($new_uri, '/'));
         if (!is_dir($directory)) {
           $file_system->mkdir($directory, NULL, TRUE);
         }
+        // End directory check.
         if ($fmove == TRUE) {
           // Move the file to the proper directory.
           file_move($file, $new_uri);
-          $directory = substr($old_uri, 0, strrpos($old_uri, '/'));
-          if (!is_dir($directory)) {
-            $file_system->mkdir($directory, NULL, TRUE);
-          }
-          $file_system->copy($new_uri, $old_uri);
           $renderCache = \Drupal::service('cache.render');
           $renderCache->invalidateAll();
         }
